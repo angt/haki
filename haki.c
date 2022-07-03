@@ -3,14 +3,12 @@
 
 #if defined(__x86_64__)
 
-typedef __m128i       h128;
 #define aesenc(X,Y)   _mm_aesenc_si128((X), (Y))
 #define load128(X)    _mm_loadu_si128((const h128 *)(X))
 #define store128(X,Y) _mm_storeu_si128((h128 *)(X), (Y))
 
 #elif defined(__aarch64__)
 
-typedef uint8x16_t    h128;
 #define aesenc(X,Y)   veorq_u8(vaesmcq_u8(vaeseq_u8((X), (h128){})), (Y))
 #define load128(X)    vld1q_u8((const uint8_t *)(X))
 #define store128(X,Y) vst1q_u8((uint8_t *)(X), (Y))
@@ -20,20 +18,16 @@ typedef uint8x16_t    h128;
 struct haki
 haki_init(void)
 {
-    static const union {
-        struct haki h;
-        unsigned char b[6][16];
-    } tmp = {
+    return (struct haki) {
         .b = {
-            [0][15] = 'H',
-            [1][14] = 'A',
-            [2][13] = 'K',
-            [3][12] = 'I',
-            [4][11] = ' ',
-            [5][10] = '!',
+            load128((char[16]){" This Is What I "}),
+            load128((char[16]){"   Put In The   "}),
+            load128((char[16]){"  State Before  "}),
+            load128((char[16]){"  Hashing Your  "}),
+            load128((char[16]){"   Stuff With   "}),
+            load128((char[16]){"   H A K I !!!  "}),
         },
     };
-    return tmp.h;
 }
 
 static inline void
@@ -68,8 +62,7 @@ haki_absorb(struct haki *h, const void *src, size_t size)
 void
 haki_flip(struct haki *h)
 {
-    const unsigned char usep = 0x1F;
-    memcpy(&h->b[0], &usep, 1);
+    h->b[0] ^= load128((char[16]){[0] = 0x1F});
     for (int i = 0; i < 7; i++)
         haki_round(h->b);
 }
@@ -81,7 +74,7 @@ haki_squeeze(struct haki *h, void *dst, size_t size)
 
     for (i = 0; i + 16 <= size; i += 16) {
         haki_round(h->b);
-        store128(dst + i, h->b[0]);
+        store128((unsigned char *)dst + i, h->b[0]);
     }
     if (r) {
         _Alignas(16) unsigned char tmp[16];

@@ -1,5 +1,5 @@
 # haki
-A PoC for a fast but unsafe and hardware-dependent hash function
+A PoC for a fast but unsafe hash function
 
     $ make
     cc -Wall -O2 -maes   -c -o test.o test.c
