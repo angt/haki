@@ -7,4 +7,4 @@ A PoC for a fast but unsafe and hardware-dependent hash function
     cc   test.o haki.o   -o test
 
     $ ./test Hello World
-    af12df3e128cf9d9660cabb0e3df8d98
+    9f158f8793aa2570bf2889d14c9d3d27
