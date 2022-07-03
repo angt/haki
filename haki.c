@@ -74,6 +74,8 @@ haki_flip(struct haki *h)
 {
     const unsigned char usep = 0x1F;
     memcpy(&h->b[0], &usep, 1);
+    for (int i = 0; i < 7; i++)
+        haki_round(h->b);
 }
 
 void
