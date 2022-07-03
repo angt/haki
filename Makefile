@@ -1,6 +1,6 @@
-CFLAGS=-Wall -O2 -maes
+CFLAGS ?= -Wall -O2 -maes
 
-test: test.o haki.o
+test: haki.o
 
 clean:
 	rm -f test test.o haki.o
