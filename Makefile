@@ -1,4 +1,4 @@
-CFLAGS ?= -Wall -O2 -maes
+CFLAGS ?= -Wall -O3 -march=native
 
 test: haki.o
 

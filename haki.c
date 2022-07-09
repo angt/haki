@@ -1,18 +1,25 @@
 #include <string.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <time.h>
+
+#if defined(__linux__)
+#include <sys/random.h>
+#endif
+#if defined(__unix__) || (defined(__APPLE__) && defined(__MACH__))
+#include <sys/param.h>
+#endif
+
 #include "haki.h"
 
 #if defined(__x86_64__)
-
 #define aesenc(X,Y)   _mm_aesenc_si128((X), (Y))
 #define load128(X)    _mm_loadu_si128((const h128 *)(X))
 #define store128(X,Y) _mm_storeu_si128((h128 *)(X), (Y))
-
 #elif defined(__aarch64__)
-
 #define aesenc(X,Y)   veorq_u8(vaesmcq_u8(vaeseq_u8((X), (h128){})), (Y))
 #define load128(X)    vld1q_u8((const uint8_t *)(X))
 #define store128(X,Y) vst1q_u8((uint8_t *)(X), (Y))
-
 #endif
 
 struct haki
@@ -30,16 +37,16 @@ haki_init(void)
     };
 }
 
-static inline void
-haki_round(h128 *state)
+void
+haki_round(struct haki *h)
 {
-    h128 tmp = aesenc(state[5] , state[0]);
-    state[5] = aesenc(state[4] , state[5]);
-    state[4] = aesenc(state[3] , state[4]);
-    state[3] = aesenc(state[2] , state[3]);
-    state[2] = aesenc(state[1] , state[2]);
-    state[1] = aesenc(state[0] , state[1]);
-    state[0] = tmp ^ (state[1] & state[3]);
+    h128 h0 = aesenc(h->b[5], h->b[0]);
+    h->b[5] = aesenc(h->b[4], h->b[5]);
+    h->b[4] = aesenc(h->b[3], h->b[4]);
+    h->b[3] = aesenc(h->b[2], h->b[3]);
+    h->b[2] = aesenc(h->b[1], h->b[2]);
+    h->b[1] = aesenc(h->b[0], h->b[1]);
+    h->b[0] = h0 ^ (h->b[2] & h->b[4]);
 }
 
 void
@@ -49,13 +56,13 @@ haki_absorb(struct haki *h, const void *src, size_t size)
 
     for (i = 0; i + 16 <= size; i += 16) {
         h->b[0] ^= load128((unsigned char *)src + i);
-        haki_round(h->b);
+        haki_round(h);
     }
     if (r) {
         _Alignas(16) unsigned char tmp[16] = {0xA0 | r};
         memcpy(tmp + 1, (unsigned char *)src + i, r);
         h->b[0] ^= load128(tmp);
-        haki_round(h->b);
+        haki_round(h);
     }
 }
 
@@ -64,7 +71,7 @@ haki_flip(struct haki *h)
 {
     h->b[0] ^= load128((char[16]){[0] = 0x1F});
     for (int i = 0; i < 7; i++)
-        haki_round(h->b);
+        haki_round(h);
 }
 
 void
@@ -73,13 +80,47 @@ haki_squeeze(struct haki *h, void *dst, size_t size)
     size_t i, r = size & 0xF;
 
     for (i = 0; i + 16 <= size; i += 16) {
-        haki_round(h->b);
+        haki_round(h);
         store128((unsigned char *)dst + i, h->b[0]);
     }
     if (r) {
         _Alignas(16) unsigned char tmp[16];
-        haki_round(h->b);
+        haki_round(h);
         store128(tmp, h->b[0]);
         memcpy((unsigned char *)dst + i, tmp, r);
     }
+}
+
+struct haki
+haki_init_random(void)
+{
+    struct haki h;
+#if defined(BSD)
+    arc4random_buf(&h, sizeof(h));
+    goto ok;
+#elif defined(__linux__)
+    if (getrandom(&h, sizeof(h), 0) == sizeof(h))
+        goto ok;
+#endif
+    h = haki_init();
+    time_t  t = time(NULL); haki_absorb(&h, &t, sizeof(t));
+    clock_t c = clock();    haki_absorb(&h, &c, sizeof(c));
+    pid_t   p = getpid();   haki_absorb(&h, &p, sizeof(p));
+ok:
+    haki_flip(&h);
+    return h;
+}
+
+unsigned long long
+haki_squeeze_n(struct haki *h, unsigned long long limit)
+{
+    if (limit < 2ULL)
+        return 0;
+
+    unsigned long long ret, min = -limit % limit;
+
+    do haki_squeeze(h, &ret, sizeof(ret));
+    while (ret < min);
+
+    return ret % limit;
 }
