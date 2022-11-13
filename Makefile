@@ -1,8 +1,8 @@
 CFLAGS ?= -Wall -O3 -march=native
 
-test: haki.o
+test:
 
 clean:
-	rm -f test test.o haki.o
+	rm -f test
 
 .PHONY: clean

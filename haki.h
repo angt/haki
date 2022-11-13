@@ -22,7 +22,6 @@ struct haki {
 struct haki haki_init(void);
 struct haki haki_init_random(void);
 
-void haki_round(struct haki *);
 void haki_absorb(struct haki *, const void *, size_t);
 void haki_flip(struct haki *);
 void haki_squeeze(struct haki *, void *, size_t);

@@ -14,12 +14,12 @@
 
 #if defined(__x86_64__)
 #define aesenc(X,Y)   _mm_aesenc_si128((X), (Y))
-#define load128(X)    _mm_loadu_si128((const h128 *)(X))
-#define store128(X,Y) _mm_storeu_si128((h128 *)(X), (Y))
+#define load128(X)    _mm_loadu_si128((const void *)(X))
+#define store128(X,Y) _mm_storeu_si128((void *)(X), (Y))
 #elif defined(__aarch64__)
 #define aesenc(X,Y)   veorq_u8(vaesmcq_u8(vaeseq_u8((X), (h128){})), (Y))
-#define load128(X)    vld1q_u8((const uint8_t *)(X))
-#define store128(X,Y) vst1q_u8((uint8_t *)(X), (Y))
+#define load128(X)    vld1q_u8((const void *)(X))
+#define store128(X,Y) vst1q_u8((void *)(X), (Y))
 #endif
 
 struct haki
@@ -37,7 +37,7 @@ haki_init(void)
     };
 }
 
-void
+static inline void
 haki_round(struct haki *h)
 {
     h128 h0 = aesenc(h->b[5], h->b[0]);
@@ -46,7 +46,7 @@ haki_round(struct haki *h)
     h->b[3] = aesenc(h->b[2], h->b[3]);
     h->b[2] = aesenc(h->b[1], h->b[2]);
     h->b[1] = aesenc(h->b[0], h->b[1]);
-    h->b[0] = h0 ^ (h->b[2] & h->b[4]);
+    h->b[0] = aesenc(h0, h->b[2] & h->b[4]);
 }
 
 void
@@ -70,8 +70,7 @@ void
 haki_flip(struct haki *h)
 {
     h->b[0] ^= load128((char[16]){[0] = 0x1F});
-    for (int i = 0; i < 7; i++)
-        haki_round(h);
+    haki_round(h);
 }
 
 void
@@ -107,7 +106,8 @@ haki_init_random(void)
     clock_t c = clock();    haki_absorb(&h, &c, sizeof(c));
     pid_t   p = getpid();   haki_absorb(&h, &p, sizeof(p));
 ok:
-    haki_flip(&h);
+    for (int i = 0; i < 7; i++)
+        haki_round(&h);
     return h;
 }
 
